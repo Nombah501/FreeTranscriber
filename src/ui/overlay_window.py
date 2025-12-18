@@ -1,7 +1,8 @@
-from PyQt6.QtWidgets import QWidget, QMenu
+from PyQt6.QtWidgets import QWidget, QMenu, QApplication
 from PyQt6.QtCore import Qt, QPoint, pyqtSignal, QTimer
 from PyQt6.QtGui import QPainter, QColor, QPen, QAction
 from .settings_dialog import SettingsDialog
+import time
 
 class FloatingButton(QWidget):
     clicked = pyqtSignal()
@@ -24,11 +25,21 @@ class FloatingButton(QWidget):
         self._drag_pos = QPoint()
         self._press_pos = QPoint()
         self._is_dragging = False
-        
-        # Load position
+        self._last_click_time = 0  # For rapid click protection
+
+        # Load position with validation
         x = self.config.get("window_x")
         y = self.config.get("window_y")
-        self.move(x, y)
+        initial_pos = QPoint(x, y)
+
+        # Validate position is on-screen, reset to default if off-screen
+        validated_pos = self._constrain_to_screen(initial_pos)
+        if validated_pos != initial_pos:
+            # Position was off-screen, save corrected position
+            self.config.set("window_x", validated_pos.x())
+            self.config.set("window_y", validated_pos.y())
+
+        self.move(validated_pos)
         
         # Idle opacity
         self.idle_opacity = self.config.get("idle_opacity")
@@ -41,13 +52,97 @@ class FloatingButton(QWidget):
         flags = Qt.WindowType.FramelessWindowHint | Qt.WindowType.Tool
         if self.config.get("always_on_top"):
             flags |= Qt.WindowType.WindowStaysOnTopHint
-        
-        # We need to hide/show to apply flag changes dynamically sometimes, 
+
+        # We need to hide/show to apply flag changes dynamically sometimes,
         # but for staysOnTop usually simply setWindowFlags works if we re-show.
         was_visible = self.isVisible()
         self.setWindowFlags(flags)
         if was_visible:
             self.show()
+
+    def _constrain_to_screen(self, pos):
+        """
+        Ensures at least 20px of widget remains visible on screen.
+        Returns constrained position within screen boundaries.
+        If position is completely off-screen, returns center of primary screen.
+        """
+        screens = QApplication.screens()
+        if not screens:
+            # Fallback to default position
+            return QPoint(100, 100)
+
+        widget_rect = self.frameGeometry()
+        widget_rect.moveTo(pos)
+
+        # Minimum visible pixels required
+        min_visible = 20
+
+        # Check if widget is on any screen
+        on_screen = False
+        for screen in screens:
+            screen_geom = screen.availableGeometry()
+            if screen_geom.intersects(widget_rect):
+                on_screen = True
+                break
+
+        if not on_screen:
+            # Widget is completely off-screen, reset to center of primary screen
+            primary_screen = QApplication.primaryScreen()
+            screen_geom = primary_screen.availableGeometry()
+            return QPoint(
+                screen_geom.center().x() - self.width() // 2,
+                screen_geom.center().y() - self.height() // 2
+            )
+
+        # Find the screen containing the widget center
+        target_screen = None
+        for screen in screens:
+            if screen.availableGeometry().contains(widget_rect.center()):
+                target_screen = screen
+                break
+
+        if not target_screen:
+            # Use primary screen as fallback
+            target_screen = QApplication.primaryScreen()
+
+        screen_geom = target_screen.availableGeometry()
+
+        # Constrain position to ensure minimum visibility
+        x = pos.x()
+        y = pos.y()
+
+        # Left edge constraint
+        if x < screen_geom.left() - self.width() + min_visible:
+            x = screen_geom.left() - self.width() + min_visible
+
+        # Right edge constraint
+        if x > screen_geom.right() - min_visible:
+            x = screen_geom.right() - min_visible
+
+        # Top edge constraint
+        if y < screen_geom.top() - self.height() + min_visible:
+            y = screen_geom.top() - self.height() + min_visible
+
+        # Bottom edge constraint
+        if y > screen_geom.bottom() - min_visible:
+            y = screen_geom.bottom() - min_visible
+
+        return QPoint(x, y)
+
+    def reset_position_to_default(self):
+        """
+        Resets widget position to center of primary screen.
+        Called from Settings dialog "Reset Position" button.
+        """
+        primary_screen = QApplication.primaryScreen()
+        screen_geom = primary_screen.availableGeometry()
+
+        center_x = screen_geom.center().x() - self.width() // 2
+        center_y = screen_geom.center().y() - self.height() // 2
+
+        self.move(center_x, center_y)
+        self.config.set("window_x", center_x)
+        self.config.set("window_y", center_y)
 
     def on_config_changed(self, key, value):
         if key == "idle_opacity":
@@ -106,13 +201,20 @@ class FloatingButton(QWidget):
     def mouseReleaseEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
             if not self._is_dragging:
-                self.clicked.emit()
+                # Rapid click protection: 300ms debounce
+                current_time = time.time()
+                if current_time - self._last_click_time > 0.3:
+                    self._last_click_time = current_time
+                    self.clicked.emit()
             else:
+                # Constrain position to screen boundaries
+                pos = self._constrain_to_screen(self.pos())
+                self.move(pos)
+
                 # Save new position after drag
-                pos = self.pos()
                 self.config.set("window_x", pos.x())
                 self.config.set("window_y", pos.y())
-                
+
             self._is_dragging = False
             event.accept()
 

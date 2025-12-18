@@ -66,7 +66,7 @@ class SettingsDialog(QDialog):
     def create_general_tab(self):
         widget = QWidget()
         layout = QVBoxLayout()
-        
+
         # Opacity Slider
         layout.addWidget(QLabel("Idle Opacity:"))
         self.opacity_slider = QSlider(Qt.Orientation.Horizontal)
@@ -76,23 +76,37 @@ class SettingsDialog(QDialog):
             lambda v: self.config.set("idle_opacity", v / 100.0)
         )
         layout.addWidget(self.opacity_slider)
-        
+
         # Checkboxes
         self.top_check = QCheckBox("Always on Top")
         self.top_check.setChecked(self.config.get("always_on_top"))
         self.top_check.toggled.connect(lambda v: self.config.set("always_on_top", v))
         self.top_check.setStyleSheet("color: white;")
         layout.addWidget(self.top_check)
-        
+
         self.sounds_check = QCheckBox("Play Sounds")
         self.sounds_check.setChecked(self.config.get("use_sounds"))
         self.sounds_check.toggled.connect(lambda v: self.config.set("use_sounds", v))
         self.sounds_check.setStyleSheet("color: white;")
         layout.addWidget(self.sounds_check)
 
+        # Reset Position Button
+        layout.addWidget(QLabel("Widget Position:"))
+        reset_position_btn = QPushButton("Reset Position to Default")
+        reset_position_btn.setStyleSheet(
+            "background: #555; color: white; padding: 8px; border: none; border-radius: 4px;"
+        )
+        reset_position_btn.clicked.connect(self.on_reset_position)
+        layout.addWidget(reset_position_btn)
+
         layout.addStretch()
         widget.setLayout(layout)
         return widget
+
+    def on_reset_position(self):
+        """Reset floating widget position to center of primary screen"""
+        if self.parent():
+            self.parent().reset_position_to_default()
 
     def create_audio_tab(self):
         widget = QWidget()
