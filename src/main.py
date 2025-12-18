@@ -29,7 +29,7 @@ class AppController:
     def __init__(self, app):
         self.app = app
         self.recorder = AudioRecorder()
-        self.transcriber = Transcriber(model_size="base")
+        self.transcriber = Transcriber(model_size="small")
         self.input_handler = InputHandler()
         
         self.ui = FloatingButton()
