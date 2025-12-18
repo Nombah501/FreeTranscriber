@@ -5,8 +5,10 @@ from PyQt6.QtGui import QPainter, QColor, QPen, QAction, QPainterPath
 class FloatingButton(QWidget):
     clicked = pyqtSignal()
     
-    def __init__(self):
+    def __init__(self, config_manager):
         super().__init__()
+        self.config = config_manager
+        
         self.setWindowFlags(
             Qt.WindowType.FramelessWindowHint | 
             Qt.WindowType.WindowStaysOnTopHint | 
@@ -23,8 +25,14 @@ class FloatingButton(QWidget):
         self._press_pos = QPoint()
         self._is_dragging = False
         
+        # Load position
+        x = self.config.get("window_x")
+        y = self.config.get("window_y")
+        self.move(x, y)
+        
         # Idle opacity
-        self.setWindowOpacity(0.7)
+        self.idle_opacity = self.config.get("idle_opacity")
+        self.setWindowOpacity(self.idle_opacity)
 
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
@@ -45,6 +53,12 @@ class FloatingButton(QWidget):
         if event.button() == Qt.MouseButton.LeftButton:
             if not self._is_dragging:
                 self.clicked.emit()
+            else:
+                # Save new position after drag
+                pos = self.pos()
+                self.config.set("window_x", pos.x())
+                self.config.set("window_y", pos.y())
+                
             self._is_dragging = False
             event.accept()
 
@@ -54,18 +68,20 @@ class FloatingButton(QWidget):
 
     def leaveEvent(self, event):
         if not self.is_recording and not self.is_processing:
-            self.setWindowOpacity(0.7)
+            self.setWindowOpacity(self.idle_opacity)
         super().leaveEvent(event)
 
     def set_recording(self, state):
         self.is_recording = state
         self.is_success = False
         self.is_processing = False
+        self.setWindowOpacity(1.0 if state else self.idle_opacity)
         self.update()
 
     def set_processing(self, state):
         self.is_processing = state
         self.is_recording = False
+        self.setWindowOpacity(1.0 if state else self.idle_opacity)
         self.update()
 
     def flash_success(self):
@@ -78,7 +94,7 @@ class FloatingButton(QWidget):
         self.is_success = False
         self.update()
         if not self.underMouse():
-            self.setWindowOpacity(0.7)
+            self.setWindowOpacity(self.idle_opacity)
 
     def paintEvent(self, event):
         painter = QPainter(self)
@@ -109,7 +125,6 @@ class FloatingButton(QWidget):
         elif self.is_success:
              pen = QPen(QColor(255, 255, 255), 3)
              painter.setPen(pen)
-             # Draw a checkmark
              painter.drawLine(18, 30, 26, 38)
              painter.drawLine(26, 38, 42, 22)
         else:

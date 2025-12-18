@@ -8,6 +8,7 @@ from ui.overlay_window import FloatingButton
 from core.audio_recorder import AudioRecorder
 from core.transcriber import Transcriber
 from core.input_handler import InputHandler
+from core.config_manager import ConfigManager
 
 class TranscribeWorker(QObject):
     finished = pyqtSignal(str)
@@ -20,24 +21,29 @@ class TranscribeWorker(QObject):
 
     def run(self):
         try:
-            text = self.transcriber.transcribe(self.audio_path)
-            self.finished.emit(text)
+            if os.path.exists(self.audio_path):
+                text = self.transcriber.transcribe(self.audio_path)
+                self.finished.emit(text)
+            else:
+                self.error.emit("Audio file not found")
         except Exception as e:
             self.error.emit(str(e))
 
 class AppController:
     def __init__(self, app):
         self.app = app
+        self.config = ConfigManager()
+        
         self.recorder = AudioRecorder()
-        self.transcriber = Transcriber(model_size="small")
+        self.transcriber = Transcriber(model_size=self.config.get("model_size"))
         self.input_handler = InputHandler()
         
-        self.ui = FloatingButton()
+        self.ui = FloatingButton(self.config)
         self.ui.clicked.connect(self.toggle_recording)
         
-        # Create a dynamic tray icon (circle)
+        # Tray Icon
         pixmap = QPixmap(32, 32)
-        pixmap.fill(QColor(0, 0, 0, 0)) # Transparent
+        pixmap.fill(QColor(0, 0, 0, 0))
         painter = QPainter(pixmap)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         painter.setBrush(QColor(50, 50, 50))
@@ -56,10 +62,15 @@ class AppController:
         self.tray_icon.setContextMenu(tray_menu)
         self.tray_icon.show()
         
-        # Setup global hotkey
-        self.input_handler.setup_hotkey('ctrl+shift+space', self.toggle_recording)
+        # Hotkey
+        self.input_handler.setup_hotkey(self.config.get("hotkey"), self.toggle_recording)
         
         self.processing = False
+        self.current_audio_path = None
+        
+        # Thread management
+        self.thread = None
+        self.worker = None
 
     def quit_app(self):
         self.ui.close()
@@ -75,9 +86,9 @@ class AppController:
             self.ui.set_recording(True)
         else:
             print("Stop recording...")
-            audio_path = self.recorder.stop_recording()
-            if audio_path:
-                self.start_transcription(audio_path)
+            self.current_audio_path = self.recorder.stop_recording()
+            if self.current_audio_path:
+                self.start_transcription(self.current_audio_path)
             else:
                 self.ui.set_recording(False)
 
@@ -86,6 +97,14 @@ class AppController:
         self.processing = True
         self.ui.set_processing(True)
         
+        # Ensure previous thread is cleaned up
+        if self.thread is not None:
+            if self.thread.isRunning():
+                self.thread.quit()
+                self.thread.wait()
+            self.thread.deleteLater()
+            self.worker.deleteLater()
+        
         self.thread = QThread()
         self.worker = TranscribeWorker(self.transcriber, audio_path)
         self.worker.moveToThread(self.thread)
@@ -93,8 +112,6 @@ class AppController:
         self.thread.started.connect(self.worker.run)
         self.worker.finished.connect(self.on_transcription_finished)
         self.worker.finished.connect(self.thread.quit)
-        self.worker.finished.connect(self.worker.deleteLater)
-        self.thread.finished.connect(self.thread.deleteLater)
         
         self.thread.start()
 
@@ -110,6 +127,13 @@ class AppController:
             self.ui.set_recording(False)
             
         self.processing = False
+        
+        # Cleanup file
+        if self.current_audio_path and os.path.exists(self.current_audio_path):
+            try:
+                os.remove(self.current_audio_path)
+            except Exception as e:
+                print(f"Failed to delete temp file: {e}")
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

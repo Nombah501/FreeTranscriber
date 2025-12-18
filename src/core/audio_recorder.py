@@ -3,6 +3,8 @@ import numpy as np
 import scipy.io.wavfile as wav
 import os
 import tempfile
+import time
+import uuid
 
 class AudioRecorder:
     def __init__(self, sample_rate=16000):
@@ -51,18 +53,10 @@ class AudioRecorder:
 
         full_audio = np.concatenate(self.audio_data, axis=0)
         
-        # Save to system temp directory
+        # Generate unique temp filename to avoid locks
+        unique_name = f"rec_{uuid.uuid4().hex[:8]}.wav"
         temp_dir = tempfile.gettempdir()
-        output_path = os.path.join(temp_dir, "freetranscriber_temp.wav")
+        output_path = os.path.join(temp_dir, unique_name)
         
         wav.write(output_path, self.sample_rate, full_audio)
         return output_path
-
-if __name__ == "__main__":
-    recorder = AudioRecorder()
-    print("Recording for 3 seconds...")
-    recorder.start_recording()
-    import time
-    time.sleep(3)
-    path = recorder.stop_recording()
-    print(f"Saved to {path}")
