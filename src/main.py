@@ -57,12 +57,15 @@ class AppController:
         
         # UI Setup
         self.ui = FloatingButton(self.config)
-        self.ui.clicked.connect(self.toggle_recording)
-        
+
         # Hotkey Bridge (CRITICAL for thread safety)
         self.bridge = HotkeyBridge()
         self.bridge.hotkey_pressed.connect(self.toggle_recording, Qt.ConnectionType.QueuedConnection)
-        
+
+        # Connect UI signals
+        self.ui.clicked.connect(self.toggle_recording)
+        self.ui.native_hotkey_received.connect(lambda: self.bridge.hotkey_pressed.emit())
+
         # Tray Icon
         pixmap = QPixmap(32, 32)
         pixmap.fill(QColor(0, 0, 0, 0))
@@ -84,8 +87,9 @@ class AppController:
         
         # Setup Initial Hotkey
         self.input_handler.register_hotkey(
-            self.config.get("hotkey"), 
-            lambda: self.bridge.hotkey_pressed.emit()
+            self.config.get("hotkey"),
+            lambda: self.bridge.hotkey_pressed.emit(),
+            self.ui.winId().__int__()
         )
         
         self.processing = False
@@ -95,11 +99,12 @@ class AppController:
 
     def on_config_changed(self, key, value):
         if key == "hotkey":
-            self.input_handler.update_hotkey(value)
+            self.input_handler.update_hotkey(value, self.ui.winId().__int__())
         # model_size/device changes are handled by Transcriber internally on next run
         # input_device_id changes are handled by Recorder internally on next run
 
     def quit_app(self):
+        self.input_handler.unregister_all(self.ui.winId().__int__())
         self.ui.close()
         self.app.quit()
 

@@ -3,9 +3,12 @@ from PyQt6.QtCore import Qt, QPoint, pyqtSignal, QTimer
 from PyQt6.QtGui import QPainter, QColor, QPen, QAction
 from .settings_dialog import SettingsDialog
 import time
+import ctypes
+import ctypes.wintypes
 
 class FloatingButton(QWidget):
     clicked = pyqtSignal()
+    native_hotkey_received = pyqtSignal(int) # Emits hotkey ID
     
     def __init__(self, config_manager):
         super().__init__()
@@ -251,6 +254,18 @@ class FloatingButton(QWidget):
         self.update()
         if not self.underMouse():
             self.setWindowOpacity(self.idle_opacity)
+
+    def nativeEvent(self, eventType, message):
+        """
+        Handle Windows native events. Used for global hotkeys (WM_HOTKEY).
+        """
+        if eventType == b"windows_generic_MSG" or eventType == "windows_generic_MSG":
+            msg = ctypes.wintypes.MSG.from_address(message.__int__())
+            if msg.message == 0x0312: # WM_HOTKEY
+                hotkey_id = msg.wParam
+                self.native_hotkey_received.emit(hotkey_id)
+                return True, 0
+        return super().nativeEvent(eventType, message)
 
     def paintEvent(self, event):
         painter = QPainter(self)
