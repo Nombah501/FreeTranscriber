@@ -1,0 +1,8 @@
+PyQt6
+faster-whisper
+sounddevice
+keyboard
+pyperclip
+scipy
+numpy
+python-dotenv

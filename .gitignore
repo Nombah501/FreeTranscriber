@@ -5,3 +5,7 @@ dist/
 build/
 *.log
 __pycache__/
+_bmad/
+_bmad-output/
+.claude/
+.gemini/
