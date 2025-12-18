@@ -1,16 +1,27 @@
 import os
 from faster_whisper import WhisperModel
-import torch
 
 class Transcriber:
     def __init__(self, model_size="base"):
         self.model_size = model_size
-        # Auto-detect device: cuda if available, else cpu
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.compute_type = "float16" if self.device == "cuda" else "int8"
         
-        print(f"Loading Whisper model '{model_size}' on {self.device}...")
-        self.model = WhisperModel(self.model_size, device=self.device, compute_type=self.compute_type)
+        # 'auto' will prefer CUDA if available, then CPU.
+        # This avoids needing to import 'torch' explicitly.
+        self.device = "auto"
+        # For CPU 'int8' is best, for CUDA 'float16' is preferred. 
+        # WhisperModel handles compute_type="default" or we can be specific.
+        self.compute_type = "default" 
+        
+        print(f"Loading Whisper model '{model_size}' (device={self.device})...")
+        try:
+            self.model = WhisperModel(
+                self.model_size, 
+                device=self.device, 
+                compute_type=self.compute_type
+            )
+        except Exception as e:
+            print(f"Error loading model: {e}. Falling back to CPU/int8.")
+            self.model = WhisperModel(self.model_size, device="cpu", compute_type="int8")
 
     def transcribe(self, audio_path):
         """
@@ -20,6 +31,7 @@ class Transcriber:
         if not os.path.exists(audio_path):
             return ""
 
+        # beam_size 5 is a good balance between speed and accuracy
         segments, info = self.model.transcribe(audio_path, beam_size=5)
         
         text = ""
@@ -29,7 +41,6 @@ class Transcriber:
         return text.strip()
 
 if __name__ == "__main__":
-    # Quick test if file exists
     import sys
     if len(sys.argv) > 1:
         ts = Transcriber()
