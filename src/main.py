@@ -1,7 +1,7 @@
 import sys
 import os
 from PyQt6.QtWidgets import QApplication, QSystemTrayIcon, QMenu
-from PyQt6.QtGui import QIcon, QAction
+from PyQt6.QtGui import QIcon, QAction, QPixmap, QPainter, QColor
 from PyQt6.QtCore import QThread, pyqtSignal, QObject
 
 from ui.overlay_window import FloatingButton
@@ -35,8 +35,17 @@ class AppController:
         self.ui = FloatingButton()
         self.ui.clicked.connect(self.toggle_recording)
         
-        # Setup Tray Icon
-        self.tray_icon = QSystemTrayIcon(QIcon("icon.png"), self.app) # Needs an icon, will use default fallback if missing
+        # Create a dynamic tray icon (circle)
+        pixmap = QPixmap(32, 32)
+        pixmap.fill(QColor(0, 0, 0, 0)) # Transparent
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setBrush(QColor(50, 50, 50))
+        painter.setPen(QColor(255, 255, 255))
+        painter.drawEllipse(4, 4, 24, 24)
+        painter.end()
+        
+        self.tray_icon = QSystemTrayIcon(QIcon(pixmap), self.app)
         self.tray_icon.setToolTip("FreeTranscriber")
         
         tray_menu = QMenu()
@@ -70,7 +79,7 @@ class AppController:
             if audio_path:
                 self.start_transcription(audio_path)
             else:
-                self.ui.set_recording(False) # Cancelled or empty
+                self.ui.set_recording(False)
 
     def start_transcription(self, audio_path):
         print(f"Starting transcription of {audio_path}...")
@@ -93,27 +102,18 @@ class AppController:
         print(f"Transcribed: {text}")
         
         if text:
-            # Copy to clipboard using Qt (Thread-safe way)
             clipboard = self.app.clipboard()
             clipboard.setText(text)
-            
-            # Type text
             self.input_handler.type_text(text)
-            
-            # Show success visual
             self.ui.flash_success()
         else:
-            # Empty result
             self.ui.set_recording(False)
             
         self.processing = False
-        
-        # Cleanup temp file handled by OS temp dir mostly, but good to be explicit if we knew the path here easily.
-        # AudioRecorder saves to specific temp file, overwriting it each time, so no massive bloat.
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    app.setQuitOnLastWindowClosed(False) # Important for tray app
+    app.setQuitOnLastWindowClosed(False)
     
     controller = AppController(app)
     controller.ui.show()
