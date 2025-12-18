@@ -10,6 +10,9 @@ from core.audio_recorder import AudioRecorder
 from core.transcriber import Transcriber
 from core.input_handler import InputHandler
 from core.config_manager import ConfigManager
+from core.logger import get_logger
+
+logger = get_logger(__name__)
 
 # Bridge to safely handle hotkeys from non-Qt threads
 class HotkeyBridge(QObject):
@@ -106,11 +109,11 @@ class AppController:
             return 
 
         if not self.recorder.recording:
-            print("Action: Start Recording")
+            logger.info("Starting recording")
             self.recorder.start_recording()
             self.ui.set_recording(True)
         else:
-            print("Action: Stop Recording")
+            logger.info("Stopping recording")
             audio_path = self.recorder.stop_recording()
             if audio_path:
                 self.start_transcription(audio_path)
@@ -140,13 +143,13 @@ class AppController:
         self.thread.start()
 
     def on_error(self, message):
-        print(f"Error during transcription: {message}")
+        logger.error(f"Error during transcription: {message}")
         self.processing = False
         self.ui.set_recording(False)
         self.ui.flash_success() # Or error state? For now just reset
 
     def on_transcription_finished(self, text):
-        print(f"Success: {text}")
+        logger.info(f"Transcription completed: {text}")
         
         if text:
             # Use Qt clipboard for thread safety and reliability
@@ -173,6 +176,7 @@ class AppController:
                 pass
 
 if __name__ == "__main__":
+    logger.info("Application Started")
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
     controller = AppController(app)

@@ -1,8 +1,10 @@
-PyQt6
+PyQt6>=6.4.0
 faster-whisper
 sounddevice
+soundfile
 keyboard
 pyperclip
 scipy
 numpy
 python-dotenv
+ruff

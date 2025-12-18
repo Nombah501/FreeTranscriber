@@ -1,6 +1,9 @@
 import json
 import os
 from PyQt6.QtCore import QObject, pyqtSignal
+from src.core.logger import get_logger
+
+logger = get_logger(__name__)
 
 class ConfigManager(QObject):
     # Сигнал, который испускается при изменении любой настройки
@@ -51,7 +54,7 @@ class ConfigManager(QObject):
                 config.update(loaded)
                 return config
         except Exception as e:
-            print(f"Error loading config: {e}")
+            logger.error(f"Error loading config: {e}")
             return self.default_config.copy()
 
     def save_config(self):
@@ -59,7 +62,7 @@ class ConfigManager(QObject):
             with open(self.config_file, 'w', encoding='utf-8') as f:
                 json.dump(self.config, f, indent=4, ensure_ascii=False)
         except Exception as e:
-            print(f"Error saving config: {e}")
+            logger.error(f"Error saving config: {e}")
 
     def get(self, key):
         return self.config.get(key, self.default_config.get(key))

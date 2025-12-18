@@ -4,8 +4,14 @@ node_modules/
 dist/
 build/
 *.log
+logs/*.log
+temp/*.wav
 __pycache__/
 _bmad/
 _bmad-output/
 .claude/
 .gemini/
+build_exe.bat
+CLAUDE.md
+config.json
+GEMINI.md
