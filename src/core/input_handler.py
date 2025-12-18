@@ -3,8 +3,10 @@ import pyperclip
 import time
 
 class InputHandler:
-    def __init__(self):
-        pass
+    def __init__(self, config_manager=None):
+        self.config = config_manager
+        self.current_hotkey = None
+        self.callback = None
 
     def type_text(self, text):
         """
@@ -14,32 +16,38 @@ class InputHandler:
         if not text:
             return
 
-        # 1. Save current clipboard content
-        old_clipboard = pyperclip.paste()
+        # 1. Put new text into clipboard
+        # Note: We rely on user config preference for 'copy_to_clipboard' if we were strict,
+        # but for pasting we MUST use clipboard as the transport mechanism.
+        try:
+            pyperclip.copy(text)
+            
+            # 2. Simulate Ctrl+V
+            time.sleep(0.1) # Small delay to ensure focus
+            keyboard.press_and_release('ctrl+v')
+        except Exception as e:
+            print(f"Error typing text: {e}")
 
-        # 2. Put new text into clipboard
-        pyperclip.copy(text)
-
-        # 3. Simulate Ctrl+V (or Cmd+V for Mac, but we are on Win)
-        time.sleep(0.1) # Small delay to ensure focus
-        keyboard.press_and_release('ctrl+v')
+    def register_hotkey(self, hotkey_str, callback):
+        """
+        Registers a global hotkey, removing the previous one if it exists.
+        """
+        if self.current_hotkey:
+            try:
+                keyboard.remove_hotkey(self.current_hotkey)
+            except:
+                pass # Ignore if it wasn't there
         
-        # 4. (Optional) Restore old clipboard after a short delay
-        # For now, we leave the transcribed text in clipboard as it's useful.
-
-    def setup_hotkey(self, hotkey_str, callback):
-        """
-        Sets up a global hotkey.
-        Example: 'ctrl+shift+space'
-        """
+        self.current_hotkey = hotkey_str
+        self.callback = callback
+        
         try:
             keyboard.add_hotkey(hotkey_str, callback)
             print(f"Hotkey '{hotkey_str}' registered.")
         except Exception as e:
             print(f"Failed to register hotkey: {e}")
+            self.current_hotkey = None
 
-if __name__ == "__main__":
-    handler = InputHandler()
-    print("Testing hotkey 'alt+s' in 2 seconds...")
-    handler.setup_hotkey('alt+s', lambda: print("Hotkey pressed!"))
-    keyboard.wait('esc')
+    def update_hotkey(self, new_hotkey):
+        if self.callback and new_hotkey != self.current_hotkey:
+            self.register_hotkey(new_hotkey, self.callback)

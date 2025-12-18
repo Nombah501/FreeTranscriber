@@ -44,9 +44,13 @@ class AppController:
         self.app = app
         self.config = ConfigManager()
         
-        self.recorder = AudioRecorder()
-        self.transcriber = Transcriber(model_size=self.config.get("model_size"))
-        self.input_handler = InputHandler()
+        self.recorder = AudioRecorder(self.config)
+        # Transcriber gets config to manage model loading dynamically
+        self.transcriber = Transcriber(self.config) 
+        self.input_handler = InputHandler(self.config)
+        
+        # Connect config signals for non-UI updates
+        self.config.config_changed.connect(self.on_config_changed)
         
         # UI Setup
         self.ui = FloatingButton(self.config)
@@ -75,8 +79,8 @@ class AppController:
         self.tray_icon.setContextMenu(tray_menu)
         self.tray_icon.show()
         
-        # Setup Hotkey via Bridge
-        self.input_handler.setup_hotkey(
+        # Setup Initial Hotkey
+        self.input_handler.register_hotkey(
             self.config.get("hotkey"), 
             lambda: self.bridge.hotkey_pressed.emit()
         )
@@ -85,6 +89,12 @@ class AppController:
         self.current_audio_path = None
         self.thread = None
         self.worker = None
+
+    def on_config_changed(self, key, value):
+        if key == "hotkey":
+            self.input_handler.update_hotkey(value)
+        # model_size/device changes are handled by Transcriber internally on next run
+        # input_device_id changes are handled by Recorder internally on next run
 
     def quit_app(self):
         self.ui.close()
@@ -133,17 +143,20 @@ class AppController:
         print(f"Error during transcription: {message}")
         self.processing = False
         self.ui.set_recording(False)
+        self.ui.flash_success() # Or error state? For now just reset
 
     def on_transcription_finished(self, text):
         print(f"Success: {text}")
         
         if text:
             # Use Qt clipboard for thread safety and reliability
-            clipboard = self.app.clipboard()
-            clipboard.setText(text)
+            if self.config.get("copy_to_clipboard"):
+                clipboard = self.app.clipboard()
+                clipboard.setText(text)
             
             # Type text into active window
-            self.input_handler.type_text(text)
+            if self.config.get("type_text"):
+                self.input_handler.type_text(text)
             
             # Visual feedback
             self.ui.flash_success()

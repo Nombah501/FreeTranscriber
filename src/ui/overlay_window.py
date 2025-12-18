@@ -1,6 +1,7 @@
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QMenu
-from PyQt6.QtCore import Qt, QPoint, pyqtSignal, QPropertyAnimation, QEasingCurve, QTimer
-from PyQt6.QtGui import QPainter, QColor, QPen, QAction, QPainterPath
+from PyQt6.QtWidgets import QWidget, QMenu
+from PyQt6.QtCore import Qt, QPoint, pyqtSignal, QTimer
+from PyQt6.QtGui import QPainter, QColor, QPen, QAction
+from .settings_dialog import SettingsDialog
 
 class FloatingButton(QWidget):
     clicked = pyqtSignal()
@@ -9,11 +10,10 @@ class FloatingButton(QWidget):
         super().__init__()
         self.config = config_manager
         
-        self.setWindowFlags(
-            Qt.WindowType.FramelessWindowHint | 
-            Qt.WindowType.WindowStaysOnTopHint | 
-            Qt.WindowType.Tool
-        )
+        # Connect config signals
+        self.config.config_changed.connect(self.on_config_changed)
+        
+        self.update_flags()
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         
         self.setFixedSize(60, 60)
@@ -33,6 +33,60 @@ class FloatingButton(QWidget):
         # Idle opacity
         self.idle_opacity = self.config.get("idle_opacity")
         self.setWindowOpacity(self.idle_opacity)
+        
+        # Settings dialog instance
+        self.settings_dialog = None
+
+    def update_flags(self):
+        flags = Qt.WindowType.FramelessWindowHint | Qt.WindowType.Tool
+        if self.config.get("always_on_top"):
+            flags |= Qt.WindowType.WindowStaysOnTopHint
+        
+        # We need to hide/show to apply flag changes dynamically sometimes, 
+        # but for staysOnTop usually simply setWindowFlags works if we re-show.
+        was_visible = self.isVisible()
+        self.setWindowFlags(flags)
+        if was_visible:
+            self.show()
+
+    def on_config_changed(self, key, value):
+        if key == "idle_opacity":
+            self.idle_opacity = value
+            if not self.underMouse() and not self.is_recording:
+                self.setWindowOpacity(value)
+        elif key == "always_on_top":
+            self.update_flags()
+
+    def contextMenuEvent(self, event):
+        menu = QMenu(self)
+        menu.setStyleSheet("""
+            QMenu { background-color: #333; color: white; border: 1px solid #555; }
+            QMenu::item { padding: 5px 20px; }
+            QMenu::item:selected { background-color: #555; }
+        """)
+        
+        settings_action = QAction("Settings", self)
+        settings_action.triggered.connect(self.open_settings)
+        menu.addAction(settings_action)
+        
+        exit_action = QAction("Exit", self)
+        exit_action.triggered.connect(self.close_application)
+        menu.addAction(exit_action)
+        
+        menu.exec(event.globalPos())
+
+    def open_settings(self):
+        if not self.settings_dialog:
+            self.settings_dialog = SettingsDialog(self.config, self)
+        
+        # Center settings relative to widget or screen
+        self.settings_dialog.show()
+        self.settings_dialog.raise_()
+        self.settings_dialog.activateWindow()
+
+    def close_application(self):
+        from PyQt6.QtWidgets import QApplication
+        QApplication.quit()
 
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
