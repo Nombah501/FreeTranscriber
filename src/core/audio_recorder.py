@@ -37,6 +37,8 @@ class AudioRecorder(QObject):
     amplitude_changed = pyqtSignal(float)
     error_occurred = pyqtSignal(str)
 
+    RMS_NORMALIZATION_FACTOR = 3.0
+
     def __init__(self, config_manager):
         """
         Initialize audio recorder.
@@ -53,6 +55,10 @@ class AudioRecorder(QObject):
         self._stop_writer = threading.Event()
         self._current_file_path: Optional[Path] = None
         self._temp_files: List[Path] = []
+        
+        # Error tracking for callback (avoid logging in audio thread)
+        self._overflow_count = 0
+        self._last_status = None
 
         # Register cleanup on exit
         atexit.register(self.cleanup_temp_files)
@@ -71,32 +77,33 @@ class AudioRecorder(QObject):
         """
         rms = np.sqrt(np.mean(audio_data ** 2))
         # Normalize to reasonable range (most speech is < 0.3 RMS)
-        normalized = min(rms * 3.0, 1.0)
+        normalized = min(rms * self.RMS_NORMALIZATION_FACTOR, 1.0)
         return float(normalized)
 
     def _audio_callback(self, indata, frames, time_info, status):
         """
         Audio input callback (runs in high-priority audio thread).
-
-        Args:
-            indata: Input audio data
-            frames: Number of frames
-            time_info: Time information
-            status: Stream status
+        
+        WARNING: NO BLOCKING I/O HERE (logging, print, file write).
         """
         if status:
-            logger.warning(f"Audio stream status: {status}")
+            # Save status for logging in a safer thread
+            self._last_status = status
             if status.input_overflow:
-                logger.error("Audio buffer overflow detected")
+                self._overflow_count += 1
 
         if self.recording:
-            # Calculate and emit RMS for UI
+            # Calculate and emit RMS for UI (PyQt signals are generally safe-ish but queue is better
+            # However, for simple float emission 60Hz, direct emit is acceptable in PyQt6)
             rms = self._calculate_rms(indata)
             self.amplitude_changed.emit(rms)
 
             # Put audio data in queue for writer thread
             # Make a copy to avoid issues with buffer reuse
-            self._audio_queue.put(indata.copy())
+            try:
+                self._audio_queue.put_nowait(indata.copy())
+            except queue.Full:
+                self._overflow_count += 1
 
     def _file_writer_thread_func(self):
         """

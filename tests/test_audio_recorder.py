@@ -157,19 +157,37 @@ class TestAudioRecorder(unittest.TestCase):
         recorder.cleanup_temp_files()
 
     @patch('sounddevice.InputStream')
-    def test_recording_creates_16khz_file(self, mock_stream_class):
-        """Test that recorded file is 16kHz mono."""
-        # This is an integration test that would require actual audio
-        # For now, we verify the soundfile parameters in writer thread
+    @patch('soundfile.SoundFile')
+    def test_recording_creates_16khz_file(self, mock_soundfile, mock_stream_class):
+        """Test that recorded file is 16kHz mono (verified via mock)."""
+        # Mock stream
+        mock_stream = MagicMock()
+        mock_stream_class.return_value = mock_stream
+        
+        # Mock soundfile context manager
+        mock_sf_instance = MagicMock()
+        mock_soundfile.return_value.__enter__.return_value = mock_sf_instance
 
         recorder = AudioRecorder(self.mock_config)
+        recorder.start_recording()
+        
+        # Verify SoundFile was initialized with correct parameters
+        # We need to find the call that created the file
+        self.assertTrue(mock_soundfile.called)
+        
+        # Check arguments of the call
+        # args[0] is file path, kwargs should contain settings
+        call_args = mock_soundfile.call_args
+        _, kwargs = call_args
+        
+        self.assertEqual(kwargs.get('samplerate'), 16000)
+        self.assertEqual(kwargs.get('channels'), 1)
+        self.assertEqual(kwargs.get('format'), 'WAV')
+        self.assertEqual(kwargs.get('subtype'), 'FLOAT')
 
-        # The file writer uses these parameters:
-        # samplerate=16000, channels=1, format='WAV', subtype='FLOAT'
-        # We can verify through code inspection that these are set correctly
-
-        # This test passes if the implementation uses correct parameters
-        self.assertTrue(True)  # Placeholder for integration test
+        # Cleanup
+        recorder.stop_recording()
+        recorder.cleanup_temp_files()
 
     @patch('sounddevice.InputStream')
     def test_error_handling_device_failure(self, mock_stream_class):
