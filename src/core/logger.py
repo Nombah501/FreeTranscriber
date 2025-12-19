@@ -36,8 +36,10 @@ def get_logger(name: str = "FreeTranscriber") -> logging.Logger:
     if _logger_instance is not None:
         return _logger_instance.getChild(name) if name != "FreeTranscriber" else _logger_instance
 
-    # Create logs directory if it doesn't exist
-    log_dir = Path("logs")
+    # Determine logs directory relative to this file: src/core/logger.py -> logs/
+    # This avoids circular dependency with src.utils.paths and CWD issues
+    project_root = Path(__file__).resolve().parent.parent.parent
+    log_dir = project_root / "logs"
     log_dir.mkdir(exist_ok=True)
 
     # Create root logger

@@ -32,13 +32,18 @@ class TranscribeWorker(QObject):
 
     def run(self):
         try:
-            if os.path.exists(self.audio_path):
-                # Small delay to ensure file is written and flushed
+            # Wait for file to be ready (max 2 seconds)
+            max_retries = 10
+            for _ in range(max_retries):
+                if os.path.exists(self.audio_path) and os.path.getsize(self.audio_path) > 0:
+                    break
                 time.sleep(0.2)
+            
+            if os.path.exists(self.audio_path):
                 text = self.transcriber.transcribe(self.audio_path)
                 self.finished.emit(text)
             else:
-                self.error.emit("Audio file not found")
+                self.error.emit("Audio file not found or empty")
         except Exception as e:
             self.error.emit(str(e))
 

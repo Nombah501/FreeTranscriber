@@ -1,0 +1,12 @@
+{
+  "repository_type": "monolith",
+  "parts": [
+    {
+      "name": "FreeTranscriber",
+      "path": "src",
+      "type": "desktop",
+      "language": "python",
+      "framework": "pyqt6"
+    }
+  ]
+}
