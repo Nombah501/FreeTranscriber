@@ -1,6 +1,6 @@
 # Story 1.5: Global Hotkey & Input Injection
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -67,6 +67,8 @@ gemini-2.0-flash-exp
 - [2025-12-18] Implemented native hotkey support.
 - [2025-12-18] Verified Cyrillic text injection via clipboard simulation.
 - [2025-12-18] Ensured fallback to `keyboard` library for non-standard environments.
+- [2025-12-19] AI Review: Fixed hardcoded hotkey ID, improved key map support, and refactored UI colors.
+- [2025-12-19] AI Review: Updated audio recorder sample rate handling (previously uncommitted).
 
 ### File List
 
@@ -74,3 +76,5 @@ gemini-2.0-flash-exp
 - `src/ui/overlay_window.py`
 - `src/main.py`
 - `tests/test_input_handler.py`
+- `src/core/audio_recorder.py`
+- `requirements.txt`

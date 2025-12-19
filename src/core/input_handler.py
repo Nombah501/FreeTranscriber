@@ -24,6 +24,20 @@ class NativeHotkeyManager:
     KEY_MAP = {
         'space': 0x20,
         'enter': 0x0D,
+        'tab': 0x09,
+        'escape': 0x1B,
+        'esc': 0x1B,
+        'backspace': 0x08,
+        'insert': 0x2D,
+        'delete': 0x2E,
+        'home': 0x24,
+        'end': 0x23,
+        'pageup': 0x21,
+        'pagedown': 0x22,
+        'up': 0x26,
+        'down': 0x28,
+        'left': 0x25,
+        'right': 0x27,
         'f1': 0x70,
         'f2': 0x71,
         'f3': 0x72,
@@ -98,6 +112,9 @@ class NativeHotkeyManager:
         return False
 
 class InputHandler:
+    PASTE_DELAY = 0.15
+    HOTKEY_ID = 1
+
     def __init__(self, config_manager=None):
         self.config = config_manager
         self.current_hotkey = None
@@ -119,7 +136,7 @@ class InputHandler:
             pyperclip.copy(text)
 
             # 2. Simulate Ctrl+V with a small safety delay
-            time.sleep(0.15) 
+            time.sleep(self.PASTE_DELAY) 
             keyboard.press_and_release('ctrl+v')
             logger.info("Text injected via clipboard")
         except Exception as e:
@@ -134,7 +151,7 @@ class InputHandler:
         
         # Try native registration if HWND is provided (PyQt window)
         if hwnd:
-            if self.native_manager.register(hwnd, 1, hotkey_str):
+            if self.native_manager.register(hwnd, self.HOTKEY_ID, hotkey_str):
                 self.current_hotkey = hotkey_str
                 self.is_native_active = True
                 return True
@@ -164,7 +181,7 @@ class InputHandler:
 
     def unregister_all(self, hwnd=None):
         if hwnd and self.is_native_active:
-            self.native_manager.unregister(hwnd, 1)
+            self.native_manager.unregister(hwnd, self.HOTKEY_ID)
         
         if self.current_hotkey and not self.is_native_active:
             try:

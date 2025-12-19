@@ -102,6 +102,10 @@ This is the heart of the "Smart Pill" experience. If this module lags, the UI la
 - [x] Replaced all print statements with logger
 - [x] Created 11 comprehensive unit tests (all passing)
 - [x] **Code Review Passed**: Critical issues fixed (tests, threading, performance).
+- [x] **Adversarial Review Fixes**:
+  - [x] Extracted `SAMPLE_RATE` constant.
+  - [x] Removed unused `resampy` dependency.
+  - [x] Added overflow logging and temp file cleanup on error.
 
 ### File List
 - src/core/audio_recorder.py - Complete refactor with disk streaming
@@ -110,6 +114,7 @@ This is the heart of the "Smart Pill" experience. If this module lags, the UI la
 ### Change Log
 - 2025-12-18: Story 1.2 completed - Audio Recording Module with disk streaming
 - 2025-12-19: Code Review fixes applied (tests, race conditions, perf)
+- 2025-12-19: Adversarial Review fixes applied (magic numbers, unused deps, error cleanup)
 
 
 ### Technical Highlights

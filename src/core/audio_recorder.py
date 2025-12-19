@@ -38,6 +38,7 @@ class AudioRecorder(QObject):
     error_occurred = pyqtSignal(str)
 
     RMS_NORMALIZATION_FACTOR = 3.0
+    SAMPLE_RATE = 16000
 
     def __init__(self, config_manager):
         """
@@ -118,7 +119,7 @@ class AudioRecorder(QObject):
             with sf.SoundFile(
                 self._current_file_path,
                 mode='w',
-                samplerate=16000,
+                samplerate=self.SAMPLE_RATE,
                 channels=1,
                 format='WAV',
                 subtype='FLOAT'
@@ -168,6 +169,7 @@ class AudioRecorder(QObject):
                 except queue.Empty:
                     break
             self._stop_writer.clear()
+            self._overflow_count = 0  # Reset overflow count
 
             # Start file writer thread
             self._writer_thread = threading.Thread(
@@ -182,7 +184,7 @@ class AudioRecorder(QObject):
             # Start audio stream (targeting 16kHz)
             try:
                 self._stream = sd.InputStream(
-                    samplerate=16000,  # Strict 16kHz for Whisper
+                    samplerate=self.SAMPLE_RATE,  # Strict 16kHz for Whisper
                     channels=1,
                     dtype='float32',
                     callback=self._audio_callback,
@@ -200,7 +202,7 @@ class AudioRecorder(QObject):
                     logger.info("Retrying with default audio device...")
                     try:
                         self._stream = sd.InputStream(
-                            samplerate=16000,
+                            samplerate=self.SAMPLE_RATE,
                             channels=1,
                             dtype='float32',
                             callback=self._audio_callback
@@ -211,10 +213,26 @@ class AudioRecorder(QObject):
                     except Exception as fallback_error:
                         logger.error(f"Fallback to default device failed: {fallback_error}")
                         self._stop_writer.set()
+                        # Clean up the empty temp file
+                        if self._current_file_path and self._current_file_path.exists():
+                            try:
+                                self._current_file_path.unlink()
+                                if self._temp_files:
+                                    self._temp_files.pop()
+                            except Exception:
+                                pass
                         self.error_occurred.emit(f"Audio device error: {str(fallback_error)}")
                         raise
                 else:
                     self._stop_writer.set()
+                    # Clean up the empty temp file
+                    if self._current_file_path and self._current_file_path.exists():
+                        try:
+                            self._current_file_path.unlink()
+                            if self._temp_files:
+                                self._temp_files.pop()
+                        except Exception:
+                            pass
                     self.error_occurred.emit(f"Audio device error: {str(e)}")
                     raise
 
@@ -224,6 +242,16 @@ class AudioRecorder(QObject):
             self._stop_writer.set()
             if self._writer_thread and self._writer_thread.is_alive():
                 self._writer_thread.join(timeout=1.0)
+            
+            # Clean up the empty temp file if it was created
+            if self._current_file_path and self._current_file_path.exists():
+                try:
+                    self._current_file_path.unlink()
+                    if self._temp_files and self._temp_files[-1] == self._current_file_path:
+                        self._temp_files.pop()
+                except Exception:
+                    pass
+            
             self.error_occurred.emit(f"Recording start failed: {str(e)}")
 
     def stop_recording(self) -> Optional[str]:
@@ -254,6 +282,10 @@ class AudioRecorder(QObject):
                 self._writer_thread.join(timeout=2.0)
                 if self._writer_thread.is_alive():
                     logger.warning("Writer thread did not finish in time")
+
+            # Check for overflows
+            if self._overflow_count > 0:
+                logger.warning(f"Audio recording finished with {self._overflow_count} overflow/dropped frames!")
 
             # Return file path if it exists
             if self._current_file_path and self._current_file_path.exists():

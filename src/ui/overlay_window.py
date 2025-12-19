@@ -16,6 +16,14 @@ class FloatingButton(QWidget):
     clicked = pyqtSignal()
     native_hotkey_received = pyqtSignal(int) # Emits hotkey ID
     
+    # UI Constants
+    COLOR_SUCCESS = QColor(50, 200, 50)
+    COLOR_ERROR = QColor(200, 50, 50)
+    COLOR_LOADING = QColor(50, 50, 200)
+    COLOR_PROCESSING = QColor(255, 165, 0)
+    COLOR_IDLE = QColor(50, 50, 50)
+    COLOR_ICON = QColor(255, 255, 255)
+
     def __init__(self, config_manager):
         super().__init__()
         self.config = config_manager
@@ -283,13 +291,18 @@ class FloatingButton(QWidget):
         """
         Handle Windows native events. Used for global hotkeys (WM_HOTKEY).
         """
-        if sys.platform == "win32" and 'ctypes.wintypes' in sys.modules:
-             if eventType == b"windows_generic_MSG" or eventType == "windows_generic_MSG":
-                msg = ctypes.wintypes.MSG.from_address(message.__int__())
-                if msg.message == 0x0312: # WM_HOTKEY
-                    hotkey_id = msg.wParam
-                    self.native_hotkey_received.emit(hotkey_id)
-                    return True, 0
+        if sys.platform == "win32":
+             # Robust check for wintypes presence
+             try:
+                 import ctypes.wintypes
+                 if eventType == b"windows_generic_MSG" or eventType == "windows_generic_MSG":
+                    msg = ctypes.wintypes.MSG.from_address(message.__int__())
+                    if msg.message == 0x0312: # WM_HOTKEY
+                        hotkey_id = msg.wParam
+                        self.native_hotkey_received.emit(hotkey_id)
+                        return True, 0
+             except ImportError:
+                 pass
         return super().nativeEvent(eventType, message)
 
     def paintEvent(self, event):
@@ -298,24 +311,24 @@ class FloatingButton(QWidget):
 
         # Draw background circle
         if self.is_success:
-             color = QColor(50, 200, 50)
+             color = self.COLOR_SUCCESS
         elif self.is_error:
-             color = QColor(200, 50, 50) # Red for error
+             color = self.COLOR_ERROR
         elif self.is_loading:
-             color = QColor(50, 50, 200) # Blue for loading
+             color = self.COLOR_LOADING
         elif self.is_recording:
-            color = QColor(200, 50, 50)
+            color = self.COLOR_ERROR
         elif self.is_processing:
-            color = QColor(255, 165, 0)
+            color = self.COLOR_PROCESSING
         else:
-            color = QColor(50, 50, 50)
+            color = self.COLOR_IDLE
             
         painter.setBrush(color)
         painter.setPen(Qt.PenStyle.NoPen)
         painter.drawEllipse(5, 5, 50, 50)
 
         # Draw icons
-        painter.setBrush(QColor(255, 255, 255))
+        painter.setBrush(self.COLOR_ICON)
         if self.is_recording:
             painter.drawRect(22, 22, 16, 16)
         elif self.is_processing:
@@ -323,19 +336,19 @@ class FloatingButton(QWidget):
              painter.drawEllipse(28, 28, 4, 4)
              painter.drawEllipse(38, 28, 4, 4)
         elif self.is_success:
-             pen = QPen(QColor(255, 255, 255), 3)
+             pen = QPen(self.COLOR_ICON, 3)
              painter.setPen(pen)
              painter.drawLine(18, 30, 26, 38)
              painter.drawLine(26, 38, 42, 22)
         elif self.is_error:
-             pen = QPen(QColor(255, 255, 255), 3)
+             pen = QPen(self.COLOR_ICON, 3)
              painter.setPen(pen)
              # Draw X
              painter.drawLine(20, 20, 40, 40)
              painter.drawLine(40, 20, 20, 40)
         elif self.is_loading:
              # Draw ...
-             painter.setBrush(QColor(255, 255, 255))
+             painter.setBrush(self.COLOR_ICON)
              painter.setPen(Qt.PenStyle.NoPen)
              painter.drawEllipse(15, 28, 4, 4)
              painter.drawEllipse(28, 28, 4, 4)
