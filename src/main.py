@@ -46,10 +46,14 @@ class AppController:
     def __init__(self, app):
         self.app = app
         self.config = ConfigManager()
-        
         self.recorder = AudioRecorder(self.config)
+        self.recorder.error_occurred.connect(self.on_error)
+        
         # Transcriber gets config to manage model loading dynamically
-        self.transcriber = Transcriber(self.config) 
+        self.transcriber = Transcriber(self.config)
+        self.transcriber.model_loading_started.connect(self.on_model_loading_started)
+        self.transcriber.model_loading_finished.connect(self.on_model_loading_finished)
+        
         self.input_handler = InputHandler(self.config)
         
         # Connect config signals for non-UI updates
@@ -79,6 +83,11 @@ class AppController:
         self.tray_icon = QSystemTrayIcon(QIcon(pixmap), self.app)
         self.tray_icon.setToolTip("FreeTranscriber")
         tray_menu = QMenu()
+        
+        settings_action = QAction("Settings", self.app)
+        settings_action.triggered.connect(self.ui.open_settings)
+        tray_menu.addAction(settings_action)
+        
         quit_action = QAction("Exit", self.app)
         quit_action.triggered.connect(self.quit_app)
         tray_menu.addAction(quit_action)
@@ -151,7 +160,16 @@ class AppController:
         logger.error(f"Error during transcription: {message}")
         self.processing = False
         self.ui.set_recording(False)
-        self.ui.flash_success() # Or error state? For now just reset
+        self.ui.flash_error()
+
+    def on_model_loading_started(self):
+        self.ui.set_loading(True)
+
+    def on_model_loading_finished(self):
+        self.ui.set_loading(False)
+        # Restore processing state if still processing
+        if self.processing:
+            self.ui.set_processing(True)
 
     def on_transcription_finished(self, text):
         logger.info(f"Transcription completed: {text}")

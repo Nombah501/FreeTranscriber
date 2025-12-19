@@ -1,7 +1,7 @@
 import json
 import os
 from PyQt6.QtCore import QObject, pyqtSignal
-from src.core.logger import get_logger
+from core.logger import get_logger
 
 logger = get_logger(__name__)
 
@@ -64,8 +64,8 @@ class ConfigManager(QObject):
         except Exception as e:
             logger.error(f"Error saving config: {e}")
 
-    def get(self, key):
-        return self.config.get(key, self.default_config.get(key))
+    def get(self, key, default=None):
+        return self.config.get(key, default if default is not None else self.default_config.get(key))
 
     def set(self, key, value):
         # Only save and signal if value actually changed

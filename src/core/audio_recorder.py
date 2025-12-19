@@ -19,8 +19,8 @@ from pathlib import Path
 from typing import Optional, List
 from PyQt6.QtCore import QObject, pyqtSignal
 
-from src.core.logger import get_logger
-from src.utils.paths import get_temp_audio_file
+from core.logger import get_logger
+from utils.paths import get_temp_audio_file
 
 logger = get_logger(__name__)
 

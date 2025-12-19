@@ -24,6 +24,8 @@ class FloatingButton(QWidget):
         self.is_recording = False
         self.is_processing = False
         self.is_success = False
+        self.is_error = False
+        self.is_loading = False
         
         self._drag_pos = QPoint()
         self._press_pos = QPoint()
@@ -243,14 +245,30 @@ class FloatingButton(QWidget):
         self.setWindowOpacity(1.0 if state else self.idle_opacity)
         self.update()
 
+    def set_loading(self, state):
+        self.is_loading = state
+        self.is_processing = False # Loading overrides processing visual
+        self.setWindowOpacity(1.0 if state else self.idle_opacity)
+        self.update()
+
     def flash_success(self):
         self.is_success = True
         self.is_processing = False
+        self.is_error = False
+        self.update()
+        QTimer.singleShot(1500, self._reset_state)
+
+    def flash_error(self):
+        self.is_error = True
+        self.is_processing = False
+        self.is_recording = False
+        self.is_success = False
         self.update()
         QTimer.singleShot(1500, self._reset_state)
 
     def _reset_state(self):
         self.is_success = False
+        self.is_error = False
         self.update()
         if not self.underMouse():
             self.setWindowOpacity(self.idle_opacity)
@@ -274,6 +292,10 @@ class FloatingButton(QWidget):
         # Draw background circle
         if self.is_success:
              color = QColor(50, 200, 50)
+        elif self.is_error:
+             color = QColor(200, 50, 50) # Red for error
+        elif self.is_loading:
+             color = QColor(50, 50, 200) # Blue for loading
         elif self.is_recording:
             color = QColor(200, 50, 50)
         elif self.is_processing:
@@ -298,6 +320,19 @@ class FloatingButton(QWidget):
              painter.setPen(pen)
              painter.drawLine(18, 30, 26, 38)
              painter.drawLine(26, 38, 42, 22)
+        elif self.is_error:
+             pen = QPen(QColor(255, 255, 255), 3)
+             painter.setPen(pen)
+             # Draw X
+             painter.drawLine(20, 20, 40, 40)
+             painter.drawLine(40, 20, 20, 40)
+        elif self.is_loading:
+             # Draw ...
+             painter.setBrush(QColor(255, 255, 255))
+             painter.setPen(Qt.PenStyle.NoPen)
+             painter.drawEllipse(15, 28, 4, 4)
+             painter.drawEllipse(28, 28, 4, 4)
+             painter.drawEllipse(41, 28, 4, 4)
         else:
             painter.setPen(Qt.PenStyle.NoPen)
             painter.drawEllipse(22, 22, 16, 16)

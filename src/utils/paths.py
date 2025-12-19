@@ -14,7 +14,7 @@ from typing import Optional
 import tempfile
 import uuid
 
-from src.core.logger import get_logger
+from core.logger import get_logger
 
 
 logger = get_logger(__name__)

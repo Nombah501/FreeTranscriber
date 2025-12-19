@@ -13,22 +13,24 @@ import os
 import gc
 from typing import Optional
 from faster_whisper import WhisperModel
+from PyQt6.QtCore import QObject, pyqtSignal
 
-from src.core.logger import get_logger
+from core.logger import get_logger
 
 logger = get_logger(__name__)
 
 
-class Transcriber:
+class Transcriber(QObject):
     """
     Local AI transcriber using Faster-Whisper.
 
-    Features:
-    - Lazy model loading (on demand)
-    - Smart memory management with unload capability
-    - CUDA auto-detection with CPU fallback
-    - Config-reactive model reloading
+    Signals:
+        model_loading_started: Emitted when model load begins
+        model_loading_finished: Emitted when model load completes
     """
+    
+    model_loading_started = pyqtSignal()
+    model_loading_finished = pyqtSignal()
 
     def __init__(self, config_manager):
         """
@@ -37,6 +39,7 @@ class Transcriber:
         Args:
             config_manager: Configuration manager instance
         """
+        super().__init__()
         self.config = config_manager
         self.model: Optional[WhisperModel] = None
         self.current_model_size: Optional[str] = None
@@ -108,6 +111,7 @@ class Transcriber:
         compute_type = "float16" if device == "cuda" else "int8"
 
         logger.info(f"Loading Whisper model '{model_size}' on {device} ({compute_type})...")
+        self.model_loading_started.emit()
 
         try:
             self.model = WhisperModel(
@@ -136,11 +140,15 @@ class Transcriber:
                     logger.info(f"Model '{model_size}' loaded successfully on CPU (fallback)")
                 except Exception as e2:
                     logger.error(f"CRITICAL: CPU fallback also failed: {e2}")
+                    self.model_loading_finished.emit() # Ensure we finish even on error
                     raise
             else:
                 # Already on CPU, can't fallback further
                 logger.error("CRITICAL: Failed to load model on CPU")
+                self.model_loading_finished.emit() # Ensure we finish even on error
                 raise
+        
+        self.model_loading_finished.emit()
 
     def load_model(self):
         """
@@ -224,8 +232,9 @@ class Transcriber:
                 return ""
 
         if self.model is None:
-            logger.error("Model failed to load, cannot transcribe")
-            return ""
+            error_msg = "Model failed to load, cannot transcribe"
+            logger.error(error_msg)
+            raise RuntimeError(error_msg)
 
         # Perform transcription
         try:
@@ -251,4 +260,4 @@ class Transcriber:
 
         except Exception as e:
             logger.error(f"Error during transcription: {e}")
-            return ""
+            raise
