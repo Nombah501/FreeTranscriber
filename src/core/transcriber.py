@@ -13,7 +13,7 @@ import os
 import gc
 from typing import Optional
 from faster_whisper import WhisperModel
-from PyQt6.QtCore import QObject, pyqtSignal
+from PyQt6.QtCore import QObject, pyqtSignal, QMutex, QMutexLocker
 
 from core.logger import get_logger
 
@@ -41,6 +41,8 @@ class Transcriber(QObject):
         """
         super().__init__()
         self.config = config_manager
+        self._lock = QMutex()  # Thread safety lock
+        
         self.model: Optional[WhisperModel] = None
         self.current_model_size: Optional[str] = None
         self.current_device: Optional[str] = None
@@ -61,8 +63,9 @@ class Transcriber(QObject):
             value: New value
         """
         if key in ('model_size', 'device'):
-            logger.info(f"Config changed: {key}={value}, marking model for reload")
-            self._model_dirty = True
+            with QMutexLocker(self._lock):
+                logger.info(f"Config changed: {key}={value}, marking model for reload")
+                self._model_dirty = True
 
     def _detect_device(self) -> str:
         """
@@ -157,29 +160,37 @@ class Transcriber(QObject):
         This is called automatically by transcribe() but can be called
         explicitly to pre-load the model.
         """
-        model_size = self.config.get("model_size", "base")
-        device = self._detect_device()
+        # Lock not needed for checking config/device (assuming thread-safe config)
+        # but needed for checking self.model state if we want strict correctness.
+        # However, _load_model_internal modifies state, so we need to be careful.
+        # We'll use a coarser lock for the whole check-and-load process to be safe.
+        
+        with QMutexLocker(self._lock):
+            model_size = self.config.get("model_size", "base")
+            device = self._detect_device()
 
-        # Check if reload needed
-        needs_reload = (
-            self.model is None or
-            self._model_dirty or
-            self.current_model_size != model_size or
-            self.current_device != device
-        )
+            # Check if reload needed
+            needs_reload = (
+                self.model is None or
+                self._model_dirty or
+                self.current_model_size != model_size or
+                self.current_device != device
+            )
 
-        if not needs_reload:
-            logger.debug("Model already loaded with current config, skipping reload")
-            return
+            if not needs_reload:
+                logger.debug("Model already loaded with current config, skipping reload")
+                return
 
-        # Unload old model first
-        if self.model is not None:
-            logger.info("Unloading old model before reload...")
-            self.unload_model()
+            # Unload old model first
+            if self.model is not None:
+                logger.info("Unloading old model before reload...")
+                # We are already locked, so we can't call unload_model() if it also locks.
+                # Refactor unload logic to internal method or just do it inline here.
+                self._unload_model_internal()
 
-        # Load new model
-        self._load_model_internal(model_size, device)
-        self._model_dirty = False
+            # Load new model
+            self._load_model_internal(model_size, device)
+            self._model_dirty = False
 
     def unload_model(self):
         """
@@ -188,6 +199,11 @@ class Transcriber(QObject):
         This explicitly deletes the model instance and runs garbage collection
         to force memory release. Useful for 24/7 running apps.
         """
+        with QMutexLocker(self._lock):
+            self._unload_model_internal()
+
+    def _unload_model_internal(self):
+        """Internal unload logic (caller must hold lock)."""
         if self.model is not None:
             logger.info("Unloading Whisper model...")
             del self.model
@@ -222,42 +238,51 @@ class Transcriber(QObject):
             logger.error(f"Audio file is empty (0 bytes): {audio_path}")
             return ""
 
-        # Ensure model is loaded
-        if self.model is None or self._model_dirty:
-            logger.debug("Model not loaded or dirty, loading now...")
+        with QMutexLocker(self._lock):
+            # Ensure model is loaded
+            if self.model is None or self._model_dirty:
+                logger.debug("Model not loaded or dirty, loading now...")
+                try:
+                    # Logic duplicated from load_model but we are already locked here
+                    model_size = self.config.get("model_size", "base")
+                    device = self._detect_device()
+                    
+                    if self.model is not None:
+                         self._unload_model_internal()
+                         
+                    self._load_model_internal(model_size, device)
+                    self._model_dirty = False
+                except Exception as e:
+                    logger.error(f"Failed to load model: {e}")
+                    return ""
+
+            if self.model is None:
+                error_msg = "Model failed to load, cannot transcribe"
+                logger.error(error_msg)
+                raise RuntimeError(error_msg)
+
+            # Perform transcription
             try:
-                self.load_model()
+                # Get language from config
+                language = self.config.get("language", "auto")
+                if language == "auto":
+                    language = None
+
+                logger.debug(f"Transcribing {file_size} bytes from {audio_path}")
+
+                segments, info = self.model.transcribe(
+                    audio_path,
+                    beam_size=5,
+                    language=language
+                )
+
+                # Concatenate all segments
+                text = "".join(segment.text for segment in segments)
+                result = text.strip()
+
+                logger.info(f"Transcription complete: {len(result)} characters")
+                return result
+
             except Exception as e:
-                logger.error(f"Failed to load model: {e}")
-                return ""
-
-        if self.model is None:
-            error_msg = "Model failed to load, cannot transcribe"
-            logger.error(error_msg)
-            raise RuntimeError(error_msg)
-
-        # Perform transcription
-        try:
-            # Get language from config
-            language = self.config.get("language", "auto")
-            if language == "auto":
-                language = None
-
-            logger.debug(f"Transcribing {file_size} bytes from {audio_path}")
-
-            segments, info = self.model.transcribe(
-                audio_path,
-                beam_size=5,
-                language=language
-            )
-
-            # Concatenate all segments
-            text = "".join(segment.text for segment in segments)
-            result = text.strip()
-
-            logger.info(f"Transcription complete: {len(result)} characters")
-            return result
-
-        except Exception as e:
-            logger.error(f"Error during transcription: {e}")
-            raise
+                logger.error(f"Error during transcription: {e}")
+                raise
