@@ -3,8 +3,14 @@ from PyQt6.QtCore import Qt, QPoint, pyqtSignal, QTimer
 from PyQt6.QtGui import QPainter, QColor, QPen, QAction
 from .settings_dialog import SettingsDialog
 import time
+import sys
 import ctypes
-import ctypes.wintypes
+
+# ctypes.wintypes is only available on Windows
+try:
+    import ctypes.wintypes
+except ImportError:
+    pass
 
 class FloatingButton(QWidget):
     clicked = pyqtSignal()
@@ -277,12 +283,13 @@ class FloatingButton(QWidget):
         """
         Handle Windows native events. Used for global hotkeys (WM_HOTKEY).
         """
-        if eventType == b"windows_generic_MSG" or eventType == "windows_generic_MSG":
-            msg = ctypes.wintypes.MSG.from_address(message.__int__())
-            if msg.message == 0x0312: # WM_HOTKEY
-                hotkey_id = msg.wParam
-                self.native_hotkey_received.emit(hotkey_id)
-                return True, 0
+        if sys.platform == "win32" and 'ctypes.wintypes' in sys.modules:
+             if eventType == b"windows_generic_MSG" or eventType == "windows_generic_MSG":
+                msg = ctypes.wintypes.MSG.from_address(message.__int__())
+                if msg.message == 0x0312: # WM_HOTKEY
+                    hotkey_id = msg.wParam
+                    self.native_hotkey_received.emit(hotkey_id)
+                    return True, 0
         return super().nativeEvent(eventType, message)
 
     def paintEvent(self, event):

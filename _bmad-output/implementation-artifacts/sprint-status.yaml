@@ -33,7 +33,7 @@ development_status:
   1-1-project-skeleton-dependencies: done
   1-2-audio-recording-module: done
   1-3-whisper-transcriber-service: done
-  1-4-floating-ui-pyqt6: review
+  1-4-floating-ui-pyqt6: done
   1-5-global-hotkey-input-injection: review
   1-6-integration-polish: done
   epic-1-retrospective: optional
