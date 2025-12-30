@@ -1,0 +1,6 @@
+include README.md
+include requirements.txt
+include install.sh
+include freetranscriber.sh
+recursive-include src *.py
+recursive-include docs *

@@ -45,11 +45,55 @@
 
 ## 📦 Установка
 
+### Windows
 1.  **Скачайте** архив с программой.
 2.  **Распакуйте** его в любую папку.
 3.  Запустите **`start.bat`**.
 
 *Для скрытого запуска используйте `run_hidden.vbs`.*
+
+### Linux (Arch/Manjaro/Ubuntu/Debian)
+
+**Автоматическая установка:**
+```bash
+# Клонируйте репозиторий
+git clone https://github.com/Nombah501/FreeTranscriber.git
+cd FreeTranscriber
+
+# Запустите скрипт установки
+./install.sh
+```
+
+**Ручная установка:**
+```bash
+# Установите зависимости
+pip3 install --user -r requirements.txt
+
+# Установите приложение
+pip3 install --user -e .
+
+# Запустите мастер настройки
+freetranscriber-setup
+```
+
+**Запуск:**
+```bash
+freetranscriber
+```
+
+**Автозапуск через systemd:**
+```bash
+mkdir -p ~/.config/systemd/user/
+cp freetranscriber.service ~/.config/systemd/user/
+systemctl --user enable --now freetranscriber.service
+```
+
+**Удаление:**
+```bash
+pip3 uninstall freetranscriber
+rm ~/.local/share/applications/freetranscriber.desktop
+systemctl --user disable --now freetranscriber.service
+```
 
 ---
 **Created with ❤️ by VibeCodding**

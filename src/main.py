@@ -172,7 +172,33 @@ class AppController:
             except:
                 pass
 
+def is_first_run():
+    from core.config_manager import ConfigManager
+    config = ConfigManager()
+    # Check if config file exists or if it's fresh install
+    from os.path import exists
+    return not exists(config.config_file)
+
 if __name__ == "__main__":
+    # Check for --setup flag to force setup wizard
+    if "--setup" in sys.argv or is_first_run():
+        from setup_wizard import run_setup
+        
+        # Run setup wizard first
+        setup_app = QApplication(sys.argv)
+        setup_app.setStyle("Fusion")
+        
+        from setup_wizard import SetupWizard
+        wizard = SetupWizard()
+        wizard.show()
+        setup_result = wizard.exec()
+        
+        if setup_result != 1: # QDialog.Accepted
+            print("Setup cancelled. Exiting.")
+            sys.exit(1)
+        
+        print("Setup completed. Starting application...")
+    
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
     controller = AppController(app)
