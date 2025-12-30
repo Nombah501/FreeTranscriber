@@ -179,7 +179,7 @@ def is_first_run():
     from os.path import exists
     return not exists(config.config_file)
 
-if __name__ == "__main__":
+def main():
     # Check for --setup flag to force setup wizard
     if "--setup" in sys.argv or is_first_run():
         from setup_wizard import run_setup
@@ -204,3 +204,6 @@ if __name__ == "__main__":
     controller = AppController(app)
     controller.ui.show()
     sys.exit(app.exec())
+
+if __name__ == "__main__":
+    main()
