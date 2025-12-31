@@ -9,3 +9,16 @@ _bmad/
 _bmad-output/
 .claude/
 .gemini/
+
+# User config
+config.json
+
+# Python package artifacts
+*.egg-info/
+*.egg
+.eggs/
+
+# Virtual environments
+venv/
+env/
+ENV/

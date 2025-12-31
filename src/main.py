@@ -11,12 +11,14 @@ from core.transcriber import Transcriber
 from core.input_handler import InputHandler
 from core.config_manager import ConfigManager
 
+
 # Bridge to safely handle hotkeys from non-Qt threads
 class HotkeyBridge(QObject):
     hotkey_pressed = pyqtSignal()
 
     def __init__(self):
         super().__init__()
+
 
 class TranscribeWorker(QObject):
     finished = pyqtSignal(str)
@@ -39,27 +41,33 @@ class TranscribeWorker(QObject):
         except Exception as e:
             self.error.emit(str(e))
 
+
 class AppController:
     def __init__(self, app):
         self.app = app
         self.config = ConfigManager()
-        
+
         self.recorder = AudioRecorder(self.config)
         # Transcriber gets config to manage model loading dynamically
-        self.transcriber = Transcriber(self.config) 
+        self.transcriber = Transcriber(self.config)
         self.input_handler = InputHandler(self.config)
-        
+
         # Connect config signals for non-UI updates
         self.config.config_changed.connect(self.on_config_changed)
-        
+
         # UI Setup
         self.ui = FloatingButton(self.config)
         self.ui.clicked.connect(self.toggle_recording)
-        
+
         # Hotkey Bridge (CRITICAL for thread safety)
         self.bridge = HotkeyBridge()
-        self.bridge.hotkey_pressed.connect(self.toggle_recording, Qt.ConnectionType.QueuedConnection)
-        
+        self.bridge.hotkey_pressed.connect(
+            self.toggle_recording, Qt.ConnectionType.QueuedConnection
+        )
+
+        # Store callback for hotkey registration
+        self.hotkey_callback = lambda: self.bridge.hotkey_pressed.emit()
+
         # Tray Icon
         pixmap = QPixmap(32, 32)
         pixmap.fill(QColor(0, 0, 0, 0))
@@ -69,7 +77,7 @@ class AppController:
         painter.setPen(QColor(255, 255, 255))
         painter.drawEllipse(4, 4, 24, 24)
         painter.end()
-        
+
         self.tray_icon = QSystemTrayIcon(QIcon(pixmap), self.app)
         self.tray_icon.setToolTip("FreeTranscriber")
         tray_menu = QMenu()
@@ -78,13 +86,19 @@ class AppController:
         tray_menu.addAction(quit_action)
         self.tray_icon.setContextMenu(tray_menu)
         self.tray_icon.show()
-        
-        # Setup Initial Hotkey
-        self.input_handler.register_hotkey(
-            self.config.get("hotkey"), 
-            lambda: self.bridge.hotkey_pressed.emit()
-        )
-        
+
+        # Setup Hotkey based on config
+        hotkey = self.config.get("hotkey")
+        if not self.config.get("disable_hotkeys"):
+            if hotkey:
+                self.input_handler.register_hotkey(hotkey, self.hotkey_callback)
+                print(f"✓ Hotkey '{hotkey}' registered successfully")
+            else:
+                print("⚠️  No hotkey configured")
+        else:
+            print("⚠️  Hotkeys disabled in configuration")
+            print("ℹ️  You can use the floating button to trigger recording")
+
         self.processing = False
         self.current_audio_path = None
         self.thread = None
@@ -92,7 +106,24 @@ class AppController:
 
     def on_config_changed(self, key, value):
         if key == "hotkey":
-            self.input_handler.update_hotkey(value)
+            if not self.config.get("disable_hotkeys"):
+                hotkey = self.config.get("hotkey")
+                if hotkey:
+                    self.input_handler.update_hotkey(hotkey)
+        elif key == "disable_hotkeys":
+            if value:
+                # Disable hotkeys
+                print("⚠️  Disabling hotkeys...")
+                self.input_handler.unregister_hotkey()
+                print("✓ Hotkeys disabled")
+                print("ℹ️  You can use the floating button to trigger recording")
+            else:
+                # Enable hotkeys
+                print("ℹ️  Enabling hotkeys...")
+                hotkey = self.config.get("hotkey")
+                if hotkey:
+                    self.input_handler.register_hotkey(hotkey, self.hotkey_callback)
+                    print(f"✓ Hotkey '{hotkey}' registered successfully")
         # model_size/device changes are handled by Transcriber internally on next run
         # input_device_id changes are handled by Recorder internally on next run
 
@@ -103,7 +134,7 @@ class AppController:
     def toggle_recording(self):
         # This now always runs in the Main GUI Thread thanks to the bridge
         if self.processing:
-            return 
+            return
 
         if not self.recorder.recording:
             print("Action: Start Recording")
@@ -121,7 +152,7 @@ class AppController:
         self.processing = True
         self.ui.set_processing(True)
         self.current_audio_path = audio_path
-        
+
         # Cleanup previous thread if exists
         if self.thread and self.thread.isRunning():
             self.thread.quit()
@@ -130,41 +161,41 @@ class AppController:
         self.thread = QThread()
         self.worker = TranscribeWorker(self.transcriber, audio_path)
         self.worker.moveToThread(self.thread)
-        
+
         self.thread.started.connect(self.worker.run)
         self.worker.finished.connect(self.on_transcription_finished)
         self.worker.finished.connect(self.thread.quit)
         self.worker.error.connect(self.on_error)
         self.worker.error.connect(self.thread.quit)
-        
+
         self.thread.start()
 
     def on_error(self, message):
         print(f"Error during transcription: {message}")
         self.processing = False
         self.ui.set_recording(False)
-        self.ui.flash_success() # Or error state? For now just reset
+        self.ui.flash_success()  # Or error state? For now just reset
 
     def on_transcription_finished(self, text):
         print(f"Success: {text}")
-        
+
         if text:
             # Use Qt clipboard for thread safety and reliability
             if self.config.get("copy_to_clipboard"):
                 clipboard = self.app.clipboard()
                 clipboard.setText(text)
-            
+
             # Type text into active window
             if self.config.get("type_text"):
                 self.input_handler.type_text(text)
-            
+
             # Visual feedback
             self.ui.flash_success()
         else:
             self.ui.set_recording(False)
-            
+
         self.processing = False
-        
+
         # Cleanup temp file
         if self.current_audio_path and os.path.exists(self.current_audio_path):
             try:
@@ -172,9 +203,44 @@ class AppController:
             except:
                 pass
 
-if __name__ == "__main__":
+
+def is_first_run():
+    from core.config_manager import ConfigManager
+
+    config = ConfigManager()
+    # Check if config file exists or if it's fresh install
+    from os.path import exists
+
+    return not exists(config.config_file)
+
+
+def main():
+    # Check for --setup flag to force setup wizard
+    if "--setup" in sys.argv or is_first_run():
+        from setup_wizard import run_setup
+
+        # Run setup wizard first
+        setup_app = QApplication(sys.argv)
+        setup_app.setStyle("Fusion")
+
+        from setup_wizard import SetupWizard
+
+        wizard = SetupWizard()
+        wizard.show()
+        setup_result = wizard.exec()
+
+        if setup_result != 1:  # QDialog.Accepted
+            print("Setup cancelled. Exiting.")
+            sys.exit(1)
+
+        print("Setup completed. Starting application...")
+
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
     controller = AppController(app)
     controller.ui.show()
     sys.exit(app.exec())
+
+
+if __name__ == "__main__":
+    main()

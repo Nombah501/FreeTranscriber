@@ -2,6 +2,7 @@ import json
 import os
 from PyQt6.QtCore import QObject, pyqtSignal
 
+
 class ConfigManager(QObject):
     # Сигнал, который испускается при изменении любой настройки
     # Передает ключ и новое значение
@@ -17,34 +18,31 @@ class ConfigManager(QObject):
             "idle_opacity": 0.6,
             "active_opacity": 1.0,
             "always_on_top": True,
-            
             # AI & Transcription settings
             "model_size": "base",  # tiny, base, small, medium, large
-            "device": "auto",      # auto, cpu, cuda
-            "language": "ru",      # ru, en, auto
-            
+            "device": "auto",  # auto, cpu, cuda
+            "language": "ru",  # ru, en, auto
             # Audio settings
-            "input_device_id": None, # None = default system device
+            "input_device_id": None,  # None = default system device
             "sample_rate": 16000,
-            
             # UX/Control settings
             "hotkey": "ctrl+shift+space",
             "use_sounds": True,
             "copy_to_clipboard": True,
             "type_text": True,
-            
+            "disable_hotkeys": False,
             # History
             "save_history": True,
-            "history_limit": 50
+            "history_limit": 50,
         }
         self.config = self.load_config()
 
     def load_config(self):
         if not os.path.exists(self.config_file):
             return self.default_config.copy()
-        
+
         try:
-            with open(self.config_file, 'r', encoding='utf-8') as f:
+            with open(self.config_file, "r", encoding="utf-8") as f:
                 loaded = json.load(f)
                 # Merge with defaults to ensure all keys exist
                 config = self.default_config.copy()
@@ -56,7 +54,7 @@ class ConfigManager(QObject):
 
     def save_config(self):
         try:
-            with open(self.config_file, 'w', encoding='utf-8') as f:
+            with open(self.config_file, "w", encoding="utf-8") as f:
                 json.dump(self.config, f, indent=4, ensure_ascii=False)
         except Exception as e:
             print(f"Error saving config: {e}")
