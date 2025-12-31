@@ -160,6 +160,35 @@ else
 fi
 echo ""
 
+# Check if gcc is installed (required for building some Python packages)
+echo ""
+echo "🔨 Checking GCC compiler..."
+if ! command -v gcc &> /dev/null; then
+    echo "⚠️  GCC not found. Installing build tools..."
+    
+    if command -v pacman &> /dev/null; then
+        # Arch/Manjaro
+        echo "   Installing base-devel for Arch/Manjaro..."
+        sudo pacman -S --needed base-devel
+    elif command -v apt &> /dev/null; then
+        # Ubuntu/Debian
+        echo "   Installing build-essential for Ubuntu/Debian..."
+        sudo apt install -y build-essential python3-dev
+    elif command -v dnf &> /dev/null; then
+        # Fedora
+        echo "   Installing gcc for Fedora..."
+        sudo dnf install -y gcc python3-devel
+    else
+        echo "⚠️  Unknown package manager. Please install GCC manually."
+        echo "   On Arch/Manjaro: sudo pacman -S base-devel"
+        echo "   On Ubuntu/Debian: sudo apt install build-essential python3-dev"
+        echo "   On Fedora: sudo dnf install gcc python3-devel"
+        exit 1
+    fi
+else
+    echo "✅ GCC found"
+fi
+
 # Install Python dependencies
 info "Installing Python dependencies from requirements.txt..."
 if [ -f "requirements.txt" ]; then
