@@ -89,7 +89,7 @@ class AppController:
 
         # Setup Hotkey based on config
         hotkey = self.config.get("hotkey")
-        if not self.config.get("disable_hotkeys", False):
+        if not self.config.get("disable_hotkeys"):
             if hotkey:
                 self.input_handler.register_hotkey(hotkey, self.hotkey_callback)
                 print(f"✓ Hotkey '{hotkey}' registered successfully")
@@ -106,7 +106,7 @@ class AppController:
 
     def on_config_changed(self, key, value):
         if key == "hotkey":
-            if not self.config.get("disable_hotkeys", False):
+            if not self.config.get("disable_hotkeys"):
                 hotkey = self.config.get("hotkey")
                 if hotkey:
                     self.input_handler.update_hotkey(hotkey)
