@@ -1,8 +1,9 @@
-PyQt6
 faster-whisper
-sounddevice
 keyboard
-pyperclip
-scipy
 numpy
+pynput
+PyQt6
+pyperclip
 python-dotenv
+scipy
+sounddevice
